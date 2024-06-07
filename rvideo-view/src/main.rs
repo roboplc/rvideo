@@ -4,7 +4,7 @@
 use std::{
     sync::mpsc::{channel, Receiver, Sender},
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use clap::Parser;
@@ -15,7 +15,7 @@ use rvideo::StreamInfo;
 #[derive(Parser)]
 struct Args {
     #[clap()]
-    target: String,
+    source: String,
     #[clap(long, default_value = "255")]
     max_fps: u8,
     #[clap(long, default_value = "5")]
@@ -44,9 +44,9 @@ fn handle_connection(
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
-    println!("{}", args.target);
+    println!("{}", args.source);
     let mut client =
-        rvideo::Client::connect(&args.target, Duration::from_secs(args.timeout.into()))?;
+        rvideo::Client::connect(&args.source, Duration::from_secs(args.timeout.into()))?;
     let stream_info = client.select_stream(args.stream_id, args.max_fps)?;
     dbg!(&stream_info);
     if stream_info.compression != rvideo::Compression::No {
@@ -58,8 +58,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..Default::default()
     };
     let (tx, rx) = channel();
+    let stream_info_c = stream_info.clone();
     thread::spawn(move || {
-        let code = if let Err(e) = handle_connection(client, tx, stream_info) {
+        let code = if let Err(e) = handle_connection(client, tx, stream_info_c) {
             eprintln!("Error: {:?}", e);
             1
         } else {
@@ -68,11 +69,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(code);
     });
     eframe::run_native(
-        &format!("{}/{} - rvideo", args.target, args.stream_id),
+        &format!("{}/{} - rvideo", args.source, args.stream_id),
         options,
         Box::new(|cc| {
             egui_extras::install_image_loaders(&cc.egui_ctx);
-            Box::new(MyApp { rx })
+            Box::new(MyApp {
+                rx,
+                stream_info,
+                source: args.source,
+                last_frame: None,
+            })
         }),
     )?;
     Ok(())
@@ -80,14 +86,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 struct MyApp {
     rx: Receiver<ColorImage>,
+    stream_info: StreamInfo,
+    source: String,
+    last_frame: Option<Instant>,
 }
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let img = self.rx.recv().unwrap();
+        let now = Instant::now();
+        let time_between_frames = self.last_frame.map(|t| now - t);
+        let fps = time_between_frames
+            .map(|t| (1.0 / t.as_secs_f64()) as u8)
+            .unwrap_or(0);
+        self.last_frame.replace(now);
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::both().show(ui, |ui| {
                 let texture = ui.ctx().load_texture("logo", img, <_>::default());
+                ui.label(format!(
+                    "Stream: {}/{}, WxH: {}x{}, Compr: {:?}, Pixel fmt: {:?}, Actual FPS: {}",
+                    self.source,
+                    self.stream_info.id,
+                    self.stream_info.width,
+                    self.stream_info.height,
+                    self.stream_info.compression,
+                    self.stream_info.pixel_format,
+                    fps
+                ));
                 ui.image(&texture);
             });
         });
