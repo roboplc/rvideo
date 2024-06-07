@@ -1,5 +1,5 @@
 [package]
-name = "rview"
+name = "rvideo-view"
 version = "0.1.0"
 edition = "2021"
 authors = ["Serhij S. <div@altertech.com>"]
