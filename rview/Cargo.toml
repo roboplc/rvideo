@@ -1,0 +1,17 @@
+[package]
+name = "rview"
+version = "0.1.0"
+edition = "2021"
+authors = ["Serhij S. <div@altertech.com>"]
+license = "Apache-2.0"
+description = "A lightweight video viewer for rvideo"
+repository = "https://github.com/roboplc/rvideo"
+keywords = ["realtime", "video", "roboplc", "plc", "industrial"]
+readme = "README.md"
+
+[dependencies]
+clap = { version = "4.5.6", features = ["derive"] }
+eframe = "0.27.2"
+egui = "0.27.2"
+egui_extras = { version = "0.27.2", features = ["default", "all_loaders"] }
+rvideo = "0.1"
