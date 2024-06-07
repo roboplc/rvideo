@@ -123,6 +123,7 @@ pub struct StreamInfo {
     pub height: u16,
 }
 
+#[derive(Clone)]
 pub struct Stream {
     id: u16,
     server_inner: Arc<StreamServerInner>,
