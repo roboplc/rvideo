@@ -13,7 +13,7 @@ use std::{
 use clap::Parser;
 use eframe::egui;
 use egui::ColorImage;
-use image::{DynamicImage, GrayImage, Rgb, RgbImage};
+use image::{DynamicImage, ImageBuffer, Rgb, RgbImage};
 use imageproc::{drawing::draw_hollow_rect_mut, rect::Rect};
 use rvideo::{BoundingBox, StreamInfo};
 use serde::Deserialize;
@@ -31,6 +31,13 @@ struct Args {
     stream_id: u16,
 }
 
+fn vec_u8_to_vec_u16(input: Vec<u8>) -> Vec<u16> {
+    input
+        .chunks_exact(2)
+        .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
+        .collect()
+}
+
 fn handle_connection(
     client: rvideo::Client,
     tx: Sender<(ColorImage, Option<Value>)>,
@@ -43,11 +50,46 @@ fn handle_connection(
         let img_data = Arc::try_unwrap(frame.data).unwrap();
         let mut img: RgbImage = match stream_info.format {
             rvideo::Format::Luma8 => {
-                DynamicImage::ImageLuma8(GrayImage::from_raw(width, height, img_data).unwrap())
-                    .to_rgb8()
+                DynamicImage::ImageLuma8(ImageBuffer::from_raw(width, height, img_data).unwrap())
+                    .into()
             }
+            rvideo::Format::Luma16 => DynamicImage::ImageLuma16(
+                ImageBuffer::from_raw(width, height, vec_u8_to_vec_u16(img_data)).unwrap(),
+            )
+            .into(),
+            rvideo::Format::LumaA8 => {
+                DynamicImage::ImageLumaA8(ImageBuffer::from_raw(width, height, img_data).unwrap())
+                    .into()
+            }
+            rvideo::Format::LumaA16 => DynamicImage::ImageLumaA16(
+                ImageBuffer::from_raw(width, height, vec_u8_to_vec_u16(img_data)).unwrap(),
+            )
+            .into(),
             rvideo::Format::Rgb8 => RgbImage::from_raw(width, height, img_data).unwrap(),
-            rvideo::Format::MJpeg => todo!(),
+            rvideo::Format::Rgb16 => DynamicImage::ImageRgb16(
+                ImageBuffer::from_raw(width, height, vec_u8_to_vec_u16(img_data)).unwrap(),
+            )
+            .into(),
+            rvideo::Format::Rgba8 => {
+                DynamicImage::ImageRgba8(ImageBuffer::from_raw(width, height, img_data).unwrap())
+                    .into()
+            }
+            rvideo::Format::Rgba16 => DynamicImage::ImageRgba16(
+                ImageBuffer::from_raw(width, height, vec_u8_to_vec_u16(img_data)).unwrap(),
+            )
+            .into(),
+            rvideo::Format::MJpeg => {
+                #[cfg(feature = "jpeg")]
+                {
+                    turbojpeg::decompress_image(&img_data).unwrap()
+                }
+                #[cfg(not(feature = "jpeg"))]
+                {
+                    unimplemented!(
+                        "MJpeg format is not supported, build the binary with 'jpeg' feature"
+                    )
+                }
+            }
         };
         let mut meta: Option<Value> = frame.metadata.and_then(|m| rmp_serde::from_slice(&m).ok());
         if let Some(Value::Object(ref mut o)) = meta {

@@ -83,8 +83,14 @@ pub enum Error {
 #[bw(repr = u8)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Format {
-    Luma8 = 1,
-    Rgb8 = 2,
+    Luma8 = 0,
+    Luma16 = 1,
+    LumaA8 = 2,
+    LumaA16 = 3,
+    Rgb8 = 4,
+    Rgb16 = 5,
+    Rgba8 = 6,
+    Rgba16 = 7,
     MJpeg = 64,
 }
 
