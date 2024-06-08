@@ -19,6 +19,8 @@ use rvideo::{BoundingBox, StreamInfo};
 use serde::Deserialize;
 use serde_json::Value;
 
+const FPS_REPORT_DELAY: Duration = Duration::from_secs(1);
+
 #[derive(Parser)]
 struct Args {
     #[clap()]
@@ -151,6 +153,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 stream_info,
                 source: args.source,
                 last_frame: None,
+                fps: <_>::default(),
             })
         }),
     )?;
@@ -181,6 +184,7 @@ struct MyApp {
     stream_info: StreamInfo,
     source: String,
     last_frame: Option<Instant>,
+    fps: Vec<(Instant, u8)>,
 }
 
 impl eframe::App for MyApp {
@@ -189,8 +193,16 @@ impl eframe::App for MyApp {
         let now = Instant::now();
         let time_between_frames = self.last_frame.map(|t| now - t);
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let fps = time_between_frames.map_or(0, |t| (1.0 / t.as_secs_f64()) as u8);
+        let last_fps = time_between_frames.map_or(0, |t| (1.0 / t.as_secs_f64()) as u8);
+        self.fps.push((now, last_fps));
+        self.fps.retain(|(t, _)| now - *t < FPS_REPORT_DELAY);
         self.last_frame.replace(now);
+        let fps = self
+            .fps
+            .iter()
+            .map(|(_, fps)| usize::from(*fps))
+            .sum::<usize>()
+            / self.fps.len();
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::both().show(ui, |ui| {
                 let texture = ui.ctx().load_texture("frame", img, <_>::default());
