@@ -1,4 +1,5 @@
 #![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "README.md" ) ) ]
+use core::fmt;
 use std::sync::Arc;
 
 use binrw::binrw;
@@ -121,6 +122,16 @@ pub struct StreamInfo {
     pub compression: Compression,
     pub width: u16,
     pub height: u16,
+}
+
+impl fmt::Display for StreamInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "#{}, WxH: {}x{}, Pixel fmt: {:?}, Compr.: {:?}",
+            self.id, self.width, self.height, self.pixel_format, self.compression
+        )
+    }
 }
 
 #[derive(Clone)]

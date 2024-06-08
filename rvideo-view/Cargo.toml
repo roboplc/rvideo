@@ -14,4 +14,6 @@ clap = { version = "4.5.6", features = ["derive"] }
 eframe = "0.27.2"
 egui = "0.27.2"
 egui_extras = { version = "0.27.2", features = ["default", "all_loaders"] }
-rvideo = "0.1"
+rmp-serde = "1.3.0"
+rvideo = { path = ".." }
+serde_json = "1.0.117"
