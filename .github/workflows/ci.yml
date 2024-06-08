@@ -25,22 +25,22 @@ jobs:
       - uses: actions/checkout@v3
       - name: cargo fmt
         run: cargo fmt --check
-  viewppy:
+  clippy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: cargo viewppy
+      - name: cargo clippy
         run: |
-          cargo viewppy --all-targets -- -W viewppy::all -W viewppy::pedantic \
-          -A viewppy::used-underscore-binding \
-          -A viewppy::doc_markdown \
-          -A viewppy::needless_pass_by_value \
-          -A viewppy::must_use_candidate \
-          -A viewppy::return_self_not_must_use \
-          -A viewppy::missing_errors_doc \
-          -A viewppy::single_match \
-          -A viewppy::uninlined_format_args \
-          -A viewppy::no_effect_underscore_binding
+          cargo clippy --all-targets -- -W clippy::all -W clippy::pedantic \
+          -A clippy::used-underscore-binding \
+          -A clippy::doc_markdown \
+          -A clippy::needless_pass_by_value \
+          -A clippy::must_use_candidate \
+          -A clippy::return_self_not_must_use \
+          -A clippy::missing_errors_doc \
+          -A clippy::single_match \
+          -A clippy::uninlined_format_args \
+          -A clippy::no_effect_underscore_binding
   view-test:
     runs-on: ubuntu-latest
     steps:
@@ -53,19 +53,19 @@ jobs:
       - uses: actions/checkout@v3
       - name: cargo fmt
         run: cd rvideo-view && cargo fmt --check
-  view-viewppy:
+  view-clippy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: cargo viewppy
+      - name: cargo clippy
         run: |
-          cd rvideo-view && cargo viewppy --all-targets -- -W viewppy::all -W viewppy::pedantic \
-          -A viewppy::used-underscore-binding \
-          -A viewppy::doc_markdown \
-          -A viewppy::needless_pass_by_value \
-          -A viewppy::must_use_candidate \
-          -A viewppy::return_self_not_must_use \
-          -A viewppy::missing_errors_doc \
-          -A viewppy::single_match \
-          -A viewppy::uninlined_format_args \
-          -A viewppy::no_effect_underscore_binding
+          cd rvideo-view && cargo clippy --all-targets -- -W clippy::all -W clippy::pedantic \
+          -A clippy::used-underscore-binding \
+          -A clippy::doc_markdown \
+          -A clippy::needless_pass_by_value \
+          -A clippy::must_use_candidate \
+          -A clippy::return_self_not_must_use \
+          -A clippy::missing_errors_doc \
+          -A clippy::single_match \
+          -A clippy::uninlined_format_args \
+          -A clippy::no_effect_underscore_binding
