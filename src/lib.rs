@@ -138,15 +138,15 @@ pub struct BoundingBox {
 #[binrw]
 #[brw(little, magic = b"R")]
 #[derive(Clone, Debug)]
-pub struct Greetings {
-    pub api_version: u8,
-    pub streams_available: u16,
+struct Greetings {
+    api_version: u8,
+    streams_available: u16,
 }
 
 #[binrw]
 #[brw(little)]
 #[derive(Clone, Debug)]
-pub struct StreamSelect {
+struct StreamSelect {
     stream_id: u16,
     max_fps: u8,
 }
