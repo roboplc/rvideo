@@ -31,6 +31,9 @@ pub async fn serve(addr: impl ToSocketAddrs + std::fmt::Debug) -> Result<(), Err
     DEFAULT_SERVER.serve(addr).await
 }
 
+/// # Panics
+///
+/// Will panic if tokio runtime is unable to start
 pub fn run_server(addr: impl ToSocketAddrs + std::fmt::Debug) -> Result<(), Error> {
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
