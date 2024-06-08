@@ -2,7 +2,10 @@
 #![allow(rustdoc::missing_crate_level_docs)]
 
 use std::{
-    sync::mpsc::{channel, Receiver, Sender},
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc,
+    },
     thread,
     time::{Duration, Instant},
 };
@@ -10,7 +13,10 @@ use std::{
 use clap::Parser;
 use eframe::egui;
 use egui::ColorImage;
-use rvideo::StreamInfo;
+use image::{DynamicImage, GrayImage, Rgb, RgbImage};
+use imageproc::{drawing::draw_hollow_rect_mut, rect::Rect};
+use rvideo::{BoundingBox, StreamInfo};
+use serde::Deserialize;
 use serde_json::Value;
 
 #[derive(Parser)]
@@ -34,11 +40,36 @@ fn handle_connection(
     let height = stream_info.height.into();
     for frame in client {
         let frame = frame?;
-        let img = match stream_info.pixel_format {
-            rvideo::PixelFormat::Luma8 => ColorImage::from_gray([width, height], &frame.data),
-            rvideo::PixelFormat::Rgb8 => ColorImage::from_rgb([width, height], &frame.data),
+        let img_data = Arc::try_unwrap(frame.data).unwrap();
+        let mut img: RgbImage = match stream_info.pixel_format {
+            rvideo::PixelFormat::Luma8 => {
+                DynamicImage::ImageLuma8(GrayImage::from_raw(width, height, img_data).unwrap())
+                    .to_rgb8()
+            }
+            rvideo::PixelFormat::Rgb8 => RgbImage::from_raw(width, height, img_data).unwrap(),
         };
-        let meta: Option<Value> = frame.metadata.and_then(|m| rmp_serde::from_slice(&m).ok());
+        let mut meta: Option<Value> = frame.metadata.and_then(|m| rmp_serde::from_slice(&m).ok());
+        if let Some(ref mut meta) = meta {
+            if let Value::Object(ref mut map) = meta {
+                if let Some(Value::Array(vals)) = map.remove(".bboxes") {
+                    for val in vals {
+                        let Ok(bbox) = BoundingBox::deserialize(val) else {
+                            continue;
+                        };
+                        draw_hollow_rect_mut(
+                            &mut img,
+                            Rect::at(bbox.x.into(), bbox.y.into())
+                                .of_size(bbox.width.into(), bbox.height.into()),
+                            Rgb(bbox.color),
+                        );
+                    }
+                }
+            }
+        }
+        let img = ColorImage::from_rgb(
+            [width.try_into().unwrap(), height.try_into().unwrap()],
+            &img,
+        );
         tx.send((img, meta))?;
     }
     Ok(())
@@ -88,18 +119,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn format_value(value: Value) -> String {
+fn format_value(value: Value, join_object: &str) -> String {
     match value {
         Value::Object(map) => map
             .into_iter()
-            .map(|(k, v)| format!("{}: {}", k, format_value(v)))
+            .map(|(k, v)| format!("{}: {}", k, format_value(v, ",")))
             .collect::<Vec<_>>()
-            .join(", "),
+            .join(join_object),
         Value::Array(arr) => arr
             .into_iter()
-            .map(format_value)
+            .map(|v| format_value(v, ","))
             .collect::<Vec<_>>()
-            .join(", "),
+            .join("; "),
         Value::String(s) => s,
         Value::Number(n) => n.to_string(),
         Value::Bool(b) => b.to_string(),
@@ -132,7 +163,7 @@ impl eframe::App for MyApp {
                 ));
                 ui.image(&texture);
                 if let Some(meta) = maybe_meta {
-                    ui.label(format_value(meta));
+                    ui.label(format_value(meta, "\n"));
                 }
             });
         });

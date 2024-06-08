@@ -9,6 +9,7 @@ mod client_async;
 mod server;
 pub use client::Client;
 pub use client_async::ClientAsync;
+use serde::{Deserialize, Serialize};
 pub use server::Server;
 use server::StreamServerInner;
 
@@ -95,6 +96,18 @@ pub enum Compression {
     Jpeg = 1,
     H264 = 2,
     H265 = 3,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct BoundingBox {
+    #[serde(rename = "c")]
+    pub color: [u8; 3],
+    pub x: u16,
+    pub y: u16,
+    #[serde(rename = "w")]
+    pub width: u16,
+    #[serde(rename = "h")]
+    pub height: u16,
 }
 
 #[binrw]

@@ -3,7 +3,7 @@ use std::{thread, time::Duration};
 use image::{ImageBuffer, Rgb};
 use imageproc::drawing::draw_text_mut;
 use rusttype::{Font, Scale};
-use rvideo::{Compression, Frame, PixelFormat, Server};
+use rvideo::{BoundingBox, Compression, Frame, PixelFormat, Server};
 use serde::Serialize;
 
 const FONT: &[u8] = include_bytes!("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf");
@@ -12,6 +12,8 @@ const FONT: &[u8] = include_bytes!("/usr/share/fonts/truetype/dejavu/DejaVuSansM
 struct FrameInfo {
     source: String,
     frame_number: u64,
+    #[serde(rename = ".bboxes")]
+    bounding_boxes: Vec<BoundingBox>,
 }
 
 #[tokio::main]
@@ -41,6 +43,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let metadata = FrameInfo {
                 source: "test".to_string(),
                 frame_number,
+                bounding_boxes: vec![
+                    BoundingBox {
+                        color: [255, 0, 0],
+                        x: 100,
+                        y: 300,
+                        width: 100,
+                        height: 100,
+                    },
+                    BoundingBox {
+                        color: [0, 255, 0],
+                        x: 220,
+                        y: 220,
+                        width: 50,
+                        height: 50,
+                    },
+                ],
             };
             stream
                 .send_frame(Frame::new_with_metadata(
