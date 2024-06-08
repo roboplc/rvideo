@@ -16,7 +16,7 @@ use tracing::{debug, error};
 
 const DEFAULT_MAX_CLIENTS: usize = 16;
 
-use crate::{Error, Frame, Greetings, Format, Stream, StreamInfo, StreamSelect, API_VERSION};
+use crate::{Error, Format, Frame, Greetings, Stream, StreamInfo, StreamSelect, API_VERSION};
 
 struct StreamInternal {
     format: Format,
@@ -46,12 +46,7 @@ impl Server {
             .max_clients
             .store(max_clients, atomic::Ordering::Relaxed);
     }
-    pub fn add_stream(
-        &self,
-        format: Format,
-        width: u16,
-        height: u16,
-    ) -> Result<Stream, Error> {
+    pub fn add_stream(&self, format: Format, width: u16, height: u16) -> Result<Stream, Error> {
         let stream_id = self.inner.add_stream(format, width, height)?;
         Ok(Stream {
             id: stream_id,

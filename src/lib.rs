@@ -1,6 +1,6 @@
 #![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "README.md" ) ) ]
 use core::fmt;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use binrw::binrw;
 
@@ -9,9 +9,35 @@ mod client_async;
 mod server;
 pub use client::Client;
 pub use client_async::ClientAsync;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 pub use server::Server;
 use server::StreamServerInner;
+use tokio::net::ToSocketAddrs;
+
+const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
+
+static DEFAULT_SERVER: Lazy<Server> = Lazy::new(|| Server::new(DEFAULT_TIMEOUT));
+
+pub fn add_stream(format: Format, width: u16, height: u16) -> Result<Stream, Error> {
+    DEFAULT_SERVER.add_stream(format, width, height)
+}
+
+pub fn send_frame(stream_id: u16, frame: Frame) -> Result<(), Error> {
+    DEFAULT_SERVER.send_frame(stream_id, frame)
+}
+
+pub async fn serve(addr: impl ToSocketAddrs + std::fmt::Debug) -> Result<(), Error> {
+    DEFAULT_SERVER.serve(addr).await
+}
+
+pub fn run_server(addr: impl ToSocketAddrs + std::fmt::Debug) -> Result<(), Error> {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(serve(addr))
+}
 
 #[derive(Clone, Debug)]
 pub struct Frame {

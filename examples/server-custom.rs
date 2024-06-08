@@ -3,7 +3,7 @@ use std::{thread, time::Duration};
 use image::{ImageBuffer, Rgb};
 use imageproc::drawing::draw_text_mut;
 use rusttype::{Font, Scale};
-use rvideo::{BoundingBox, Format, Frame};
+use rvideo::{BoundingBox, Format, Frame, Server};
 use serde::Serialize;
 
 const FONT: &[u8] = include_bytes!("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf");
@@ -16,11 +16,13 @@ struct FrameInfo {
     bounding_boxes: Vec<BoundingBox>,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let width = 640;
     let height = 480;
-    let stream = rvideo::add_stream(Format::Rgb8, width, height)?;
-    thread::spawn(move || {
+    let server = Server::new(Duration::from_secs(5));
+    let stream = server.add_stream(Format::Rgb8, width, height)?;
+    tokio::task::spawn_blocking(move || {
         let mut frame_number = 0;
         let font = Font::try_from_bytes(FONT).unwrap();
         loop {
@@ -68,6 +70,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             frame_number += 1;
         }
     });
-    rvideo::run_server("127.0.0.1:3001")?;
+    server.serve("127.0.0.1:3001").await?;
     Ok(())
 }
