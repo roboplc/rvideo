@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [ "*" ]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: cargo test
+        run: cargo test --all-features --all-targets --features openssl-vendored
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: cargo fmt
+        run: cargo fmt --check
+  viewppy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: cargo viewppy
+        run: |
+          cargo viewppy --all-targets -- -W viewppy::all -W viewppy::pedantic \
+          -A viewppy::used-underscore-binding \
+          -A viewppy::doc_markdown \
+          -A viewppy::needless_pass_by_value \
+          -A viewppy::must_use_candidate \
+          -A viewppy::return_self_not_must_use \
+          -A viewppy::missing_errors_doc \
+          -A viewppy::single_match \
+          -A viewppy::uninlined_format_args \
+          -A viewppy::no_effect_underscore_binding
+  view-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: cargo test
+        run: cd rvideo-view && cargo test --verbose --all-features --all-targets
+  view-fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: cargo fmt
+        run: cd rvideo-view && cargo fmt --check
+  view-viewppy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: cargo viewppy
+        run: |
+          cd rvideo-view && cargo viewppy --all-targets -- -W viewppy::all -W viewppy::pedantic \
+          -A viewppy::used-underscore-binding \
+          -A viewppy::doc_markdown \
+          -A viewppy::needless_pass_by_value \
+          -A viewppy::must_use_candidate \
+          -A viewppy::return_self_not_must_use \
+          -A viewppy::missing_errors_doc \
+          -A viewppy::single_match \
+          -A viewppy::uninlined_format_args \
+          -A viewppy::no_effect_underscore_binding
