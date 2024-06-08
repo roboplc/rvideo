@@ -82,20 +82,10 @@ pub enum Error {
 #[br(repr = u8)]
 #[bw(repr = u8)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum PixelFormat {
+pub enum Format {
     Luma8 = 1,
     Rgb8 = 2,
-}
-
-#[binrw]
-#[br(repr = u8)]
-#[bw(repr = u8)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Compression {
-    No = 0,
-    Jpeg = 1,
-    H264 = 2,
-    H265 = 3,
+    MJpeg = 64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -131,8 +121,7 @@ pub struct StreamSelect {
 #[derive(Clone, Debug)]
 pub struct StreamInfo {
     pub id: u16,
-    pub pixel_format: PixelFormat,
-    pub compression: Compression,
+    pub format: Format,
     pub width: u16,
     pub height: u16,
 }
@@ -141,8 +130,8 @@ impl fmt::Display for StreamInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "#{}, WxH: {}x{}, Pixel fmt: {:?}, Compr.: {:?}",
-            self.id, self.width, self.height, self.pixel_format, self.compression
+            "#{}, WxH: {}x{}, Fmt: {:?}",
+            self.id, self.width, self.height, self.format
         )
     }
 }

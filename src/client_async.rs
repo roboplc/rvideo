@@ -44,7 +44,7 @@ impl ClientAsync {
         let mut writer = Cursor::new(Vec::new());
         binrw::BinWrite::write(&stream_select, &mut writer)?;
         tokio::time::timeout(self.timeout, self.stream.write_all(&writer.into_inner())).await??;
-        let mut buf = [0u8; 8];
+        let mut buf = [0u8; 7];
         tokio::time::timeout(self.timeout, self.stream.read_exact(&mut buf)).await??;
         let stream_info = StreamInfo::read(&mut Cursor::new(&buf))?;
         if stream_info.id == stream_id {

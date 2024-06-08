@@ -16,14 +16,10 @@ use tracing::{debug, error};
 
 const DEFAULT_MAX_CLIENTS: usize = 16;
 
-use crate::{
-    Compression, Error, Frame, Greetings, PixelFormat, Stream, StreamInfo, StreamSelect,
-    API_VERSION,
-};
+use crate::{Error, Frame, Greetings, Format, Stream, StreamInfo, StreamSelect, API_VERSION};
 
 struct StreamInternal {
-    pixel_format: PixelFormat,
-    compression: Compression,
+    format: Format,
     width: u16,
     height: u16,
     clients: BTreeMap<usize, Sender<Frame>>,
@@ -52,14 +48,11 @@ impl Server {
     }
     pub fn add_stream(
         &self,
-        pixel_format: PixelFormat,
-        compression: Compression,
+        format: Format,
         width: u16,
         height: u16,
     ) -> Result<Stream, Error> {
-        let stream_id = self
-            .inner
-            .add_stream(pixel_format, compression, width, height)?;
+        let stream_id = self.inner.add_stream(format, width, height)?;
         Ok(Stream {
             id: stream_id,
             server_inner: self.inner.clone(),
@@ -98,35 +91,21 @@ pub(crate) struct StreamServerInner {
 }
 
 impl StreamServerInner {
-    fn add_stream(
-        &self,
-        pixel_format: PixelFormat,
-        compression: Compression,
-        width: u16,
-        height: u16,
-    ) -> Result<u16, Error> {
-        debug!(?pixel_format, ?compression, width, height, "adding stream");
+    fn add_stream(&self, format: Format, width: u16, height: u16) -> Result<u16, Error> {
+        debug!(?format, width, height, "adding stream");
         let mut streams = self.streams.lock();
         if streams.len() >= usize::from(u16::MAX) {
             return Err(Error::TooManyStreams);
         }
         let stream = StreamInternal {
-            pixel_format,
-            compression,
+            format,
             clients: <_>::default(),
             width,
             height,
         };
         streams.push(stream);
         let stream_id = u16::try_from(streams.len() - 1).unwrap();
-        debug!(
-            stream_id,
-            ?pixel_format,
-            ?compression,
-            width,
-            height,
-            "stream added"
-        );
+        debug!(stream_id, ?format, width, height, "stream added");
         Ok(stream_id)
     }
     fn add_client(&self, stream_id: u16, client_id: usize) -> Result<Receiver<Frame>, Error> {
@@ -195,8 +174,7 @@ impl StreamServerInner {
         };
         let si = StreamInfo {
             id: stream_id,
-            pixel_format: stream.pixel_format,
-            compression: stream.compression,
+            format: stream.format,
             width: stream.width,
             height: stream.height,
         };

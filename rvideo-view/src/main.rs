@@ -41,28 +41,27 @@ fn handle_connection(
     for frame in client {
         let frame = frame?;
         let img_data = Arc::try_unwrap(frame.data).unwrap();
-        let mut img: RgbImage = match stream_info.pixel_format {
-            rvideo::PixelFormat::Luma8 => {
+        let mut img: RgbImage = match stream_info.format {
+            rvideo::Format::Luma8 => {
                 DynamicImage::ImageLuma8(GrayImage::from_raw(width, height, img_data).unwrap())
                     .to_rgb8()
             }
-            rvideo::PixelFormat::Rgb8 => RgbImage::from_raw(width, height, img_data).unwrap(),
+            rvideo::Format::Rgb8 => RgbImage::from_raw(width, height, img_data).unwrap(),
+            rvideo::Format::MJpeg => todo!(),
         };
         let mut meta: Option<Value> = frame.metadata.and_then(|m| rmp_serde::from_slice(&m).ok());
-        if let Some(ref mut meta) = meta {
-            if let Value::Object(ref mut map) = meta {
-                if let Some(Value::Array(vals)) = map.remove(".bboxes") {
-                    for val in vals {
-                        let Ok(bbox) = BoundingBox::deserialize(val) else {
-                            continue;
-                        };
-                        draw_hollow_rect_mut(
-                            &mut img,
-                            Rect::at(bbox.x.into(), bbox.y.into())
-                                .of_size(bbox.width.into(), bbox.height.into()),
-                            Rgb(bbox.color),
-                        );
-                    }
+        if let Some(Value::Object(ref mut o)) = meta {
+            if let Some(Value::Array(vals)) = o.remove(".bboxes") {
+                for val in vals {
+                    let Ok(bbox) = BoundingBox::deserialize(val) else {
+                        continue;
+                    };
+                    draw_hollow_rect_mut(
+                        &mut img,
+                        Rect::at(bbox.x.into(), bbox.y.into())
+                            .of_size(bbox.width.into(), bbox.height.into()),
+                        Rgb(bbox.color),
+                    );
                 }
             }
         }
@@ -82,9 +81,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         rvideo::Client::connect(&args.source, Duration::from_secs(args.timeout.into()))?;
     let stream_info = client.select_stream(args.stream_id, args.max_fps)?;
     println!("Stream connected: {} {}", args.source, stream_info);
-    if stream_info.compression != rvideo::Compression::No {
-        return Err("Unsupported compression".into());
-    }
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([
             f32::from(stream_info.width) + 40.0,
@@ -150,9 +146,8 @@ impl eframe::App for MyApp {
         let (img, maybe_meta) = self.rx.recv().unwrap();
         let now = Instant::now();
         let time_between_frames = self.last_frame.map(|t| now - t);
-        let fps = time_between_frames
-            .map(|t| (1.0 / t.as_secs_f64()) as u8)
-            .unwrap_or(0);
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let fps = time_between_frames.map_or(0, |t| (1.0 / t.as_secs_f64()) as u8);
         self.last_frame.replace(now);
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::both().show(ui, |ui| {

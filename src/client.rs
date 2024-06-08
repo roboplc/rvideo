@@ -46,7 +46,7 @@ impl Client {
         let mut writer = Cursor::new(Vec::new());
         binrw::BinWrite::write(&stream_select, &mut writer)?;
         self.stream.write_all(&writer.into_inner())?;
-        let mut buf = [0u8; 8];
+        let mut buf = [0u8; 7];
         self.stream.read_exact(&mut buf)?;
         let stream_info = StreamInfo::read(&mut Cursor::new(&buf))?;
         if stream_info.id == stream_id {
