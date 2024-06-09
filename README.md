@@ -30,3 +30,7 @@ overhead for an embedded application it is included in:
 
 RVideo streams can be received with clients provided by crate. For ready-to-use
 UI, see the [`rvideo-view`](https://crates.io/crates/rvideo-view) crate.
+
+## About
+
+RVideo is a part of [RoboPLC](https://www.roboplc.com/) project.
