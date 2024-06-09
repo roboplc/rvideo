@@ -4,5 +4,29 @@
   <a href="https://docs.rs/rvideo"><img alt="docs.rs page" src="https://docs.rs/rvideo/badge.svg"></img></a>
 </h2>
 
+Real-time video server for embedded apps.
 
-Real-time video server for embedded apps
+## What is RVideo
+
+RVideo is a library which solves the problem of streaming video from embedded
+applications. Many of such are headless and do not require a dedicated
+interface, however it is often useful (especially for developers) to see what
+is happening on the device. RVideo provides a simple API to stream video from
+your embedded application to a remote client.
+
+## How does it work
+
+Unlike other streaming solutions, the goal of RVideo is to provide a minimal
+overhead for an embedded application it is included in:
+
+* Frames are always sent as-is, usually in RAW formats (it is more than enough
+  for most debugging use-cases)
+
+* All frames, not received by a client in time, are dropped
+
+* No any buffering is performed on the server side
+
+## Clients
+
+RVideo streams can be received with clients provided by crate. For ready-to-use
+UI, see the [`rvideo-view`](https://crates.io/crates/rvideo-view) crate.
