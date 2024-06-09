@@ -8,6 +8,7 @@ use binrw::BinRead;
 
 use crate::{Error, Frame, Greetings, StreamInfo, StreamSelect};
 
+/// Synchronous client
 pub struct Client {
     stream: TcpStream,
     streams_available: u16,
@@ -15,6 +16,7 @@ pub struct Client {
 }
 
 impl Client {
+    /// Connect to a server and create a client instance
     pub fn connect(addr: impl ToSocketAddrs, timeout: Duration) -> Result<Self, Error> {
         let mut stream = TcpStream::connect_timeout(
             &addr
@@ -38,9 +40,12 @@ impl Client {
             ready: false,
         })
     }
+    /// Get the number of streams available
     pub fn streams_available(&self) -> u16 {
         self.streams_available
     }
+    /// Select a stream on the server. As soon as a stream is selected, the client is ready to
+    /// receive frames (use the client as an iterator).
     pub fn select_stream(&mut self, stream_id: u16, max_fps: u8) -> Result<StreamInfo, Error> {
         let stream_select = StreamSelect { stream_id, max_fps };
         let mut writer = Cursor::new(Vec::new());

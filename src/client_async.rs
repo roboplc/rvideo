@@ -8,6 +8,7 @@ use tokio::{
 
 use crate::{Error, Frame, Greetings, StreamInfo, StreamSelect};
 
+/// Asynchronous client
 pub struct ClientAsync {
     stream: TcpStream,
     streams_available: u16,
@@ -16,6 +17,7 @@ pub struct ClientAsync {
 }
 
 impl ClientAsync {
+    /// Connect to a server and create a client instance
     pub async fn connect(addr: impl ToSocketAddrs, timeout: Duration) -> Result<Self, Error> {
         let mut stream = tokio::time::timeout(timeout, TcpStream::connect(addr)).await??;
         stream.set_nodelay(true)?;
@@ -32,9 +34,12 @@ impl ClientAsync {
             timeout,
         })
     }
+    /// Get the number of streams available
     pub fn streams_available(&self) -> u16 {
         self.streams_available
     }
+    /// Select a stream on the server. As soon as a stream is selected, the client is ready to
+    /// receive frames (use the client as an iterator).
     pub async fn select_stream(
         &mut self,
         stream_id: u16,
@@ -54,6 +59,7 @@ impl ClientAsync {
             Err(Error::InvalidStream)
         }
     }
+    /// Read a next frame from the server
     pub async fn read_next(&mut self) -> Result<Frame, Error> {
         if !self.ready {
             return Err(Error::NotReady);

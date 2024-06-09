@@ -25,12 +25,15 @@ struct StreamInternal {
     clients: BTreeMap<usize, Sender<Frame>>,
 }
 
+/// A server instance. The crate creates a default server, however in some circumstances it might
+/// be useful to create a custom one.
 #[derive(Clone)]
 pub struct Server {
     inner: Arc<StreamServerInner>,
 }
 
 impl Server {
+    /// Create a new server with a given timeout
     pub fn new(timeout: Duration) -> Self {
         Self {
             inner: Arc::new(StreamServerInner {
@@ -41,11 +44,13 @@ impl Server {
             }),
         }
     }
+    /// Set the maximum number of clients that can connect to the server (default is 16)
     pub fn set_max_clients(&self, max_clients: usize) {
         self.inner
             .max_clients
             .store(max_clients, atomic::Ordering::Relaxed);
     }
+    /// Add a stream to the server
     pub fn add_stream(&self, format: Format, width: u16, height: u16) -> Result<Stream, Error> {
         let stream_id = self.inner.add_stream(format, width, height)?;
         Ok(Stream {
@@ -53,9 +58,11 @@ impl Server {
             server_inner: self.inner.clone(),
         })
     }
+    /// Send frame to the server with stream id
     pub fn send_frame(&self, stream_id: u16, frame: Frame) -> Result<(), Error> {
         self.inner.send_frame(stream_id, frame)
     }
+    /// Serve (requires a tokio runtime)
     pub async fn serve(&self, addr: impl ToSocketAddrs + std::fmt::Debug) -> Result<(), Error> {
         debug!(?addr, "starting server");
         let pool = simple_pool::ResourcePool::new();
