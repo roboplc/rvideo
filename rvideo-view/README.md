@@ -4,7 +4,7 @@ A lightweight viewer for [RVideo](https://crates.io/rvideo) streams.
 
 <img
 src="https://raw.githubusercontent.com/roboplc/rvideo/main/rvideo-view/rvideo-view.png"
-width="200" />
+width="400" />
 
 * Supports all formats supported by RVideo.
 
