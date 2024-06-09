@@ -17,7 +17,7 @@ video from your embedded application to a remote client.
 ## How does it work
 
 Unlike other streaming solutions, the goal of RVideo is to provide a minimal
-overhead for an embedded application it is included in:
+overhead for an embedded application it is included into:
 
 * Frames are always sent as-is, usually in RAW formats (it is more than enough
   for most debugging use-cases)
