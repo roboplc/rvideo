@@ -1,6 +1,6 @@
 # rvideo-view
 
-A lightweight viewer for [RVideo](https://crates.io/rvideo) streams.
+A lightweight viewer for [RVideo](https://crates.io/crate/rvideo) streams.
 
 <img
 src="https://raw.githubusercontent.com/roboplc/rvideo/main/rvideo-view/rvideo-view.png"
@@ -34,10 +34,10 @@ RVideo allows frame metadata to be encoded in any format. However, to display
 frame metadata in rvideo-view, the following requirements must be met:
 
 * Metadata must be encoded in MessagePack format e.g. with
-  [rmp-serde](https://crates.io/rmp-serde)].
+  [rmp-serde](https://crates.io/crate/rmp-serde)].
 
 * To display bounding boxes, they must be in `BoundingBox` structure, provided
-  by the [RVideo](https://crates.io/rvideo) crate.
+  by the [RVideo](https://crates.io/crate/rvideo) crate.
 
 * The bounding boxes array must be placed into `.bboxes` field on top of the
   metadata structure (the structure must be a map).
