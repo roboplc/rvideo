@@ -34,7 +34,7 @@ RVideo allows frame metadata to be encoded in any format. However, to display
 frame metadata in rvideo-view, the following requirements must be met:
 
 * Metadata must be encoded in MessagePack format e.g. with
-  [rmp-serde](https://crates.io/crates/rmp-serde)].
+  [rmp-serde](https://crates.io/crates/rmp-serde).
 
 * To display bounding boxes, they must be in `BoundingBox` structure, provided
   by the [RVideo](https://crates.io/crates/rvideo) crate.
