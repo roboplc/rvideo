@@ -9,10 +9,10 @@ Real-time video server for embedded apps.
 ## What is RVideo
 
 RVideo is a library which solves the problem of streaming video from embedded
-applications. Many of such are headless and do not require a dedicated
-interface, however it is often useful (especially for developers) to see what
-is happening on the device. RVideo provides a simple API to stream video from
-your embedded application to a remote client.
+computer-vision applications. Many of such are headless and do not require a
+dedicated interface, however it is often useful (especially for developers) to
+see what is happening on the device. RVideo provides a simple API to stream
+video from your embedded application to a remote client.
 
 ## How does it work
 
