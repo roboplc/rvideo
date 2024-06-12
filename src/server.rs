@@ -12,7 +12,7 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpStream, ToSocketAddrs},
 };
-use tracing::{debug, error};
+use tracing::{error, trace};
 
 const DEFAULT_MAX_CLIENTS: usize = 16;
 
@@ -64,7 +64,7 @@ impl Server {
     }
     /// Serve (requires a tokio runtime)
     pub async fn serve(&self, addr: impl ToSocketAddrs + std::fmt::Debug) -> Result<(), Error> {
-        debug!(?addr, "starting server");
+        trace!(?addr, "starting server");
         let pool = simple_pool::ResourcePool::new();
         // move to a semaphore when robplc will be split
         for _ in 0..self.inner.max_clients.load(atomic::Ordering::Relaxed) {
@@ -72,10 +72,10 @@ impl Server {
         }
         let listener = tokio::net::TcpListener::bind(addr).await?;
         while let Ok((mut socket, addr)) = listener.accept().await {
-            debug!(?addr, "new connection");
+            trace!(?addr, "new connection");
             let inner = self.inner.clone();
             let permission = pool.get().await;
-            debug!(?addr, "handling connection");
+            trace!(?addr, "handling connection");
             tokio::spawn(async move {
                 let _permission = permission;
                 let _r = inner.handle_connection(&mut socket).await;
@@ -94,7 +94,7 @@ pub(crate) struct StreamServerInner {
 
 impl StreamServerInner {
     fn add_stream(&self, format: Format, width: u16, height: u16) -> Result<u16, Error> {
-        debug!(?format, width, height, "adding stream");
+        trace!(?format, width, height, "adding stream");
         let mut streams = self.streams.lock();
         if streams.len() >= usize::from(u16::MAX) {
             return Err(Error::TooManyStreams);
@@ -107,15 +107,15 @@ impl StreamServerInner {
         };
         streams.push(stream);
         let stream_id = u16::try_from(streams.len() - 1).unwrap();
-        debug!(stream_id, ?format, width, height, "stream added");
+        trace!(stream_id, ?format, width, height, "stream added");
         Ok(stream_id)
     }
     fn add_client(&self, stream_id: u16, client_id: usize) -> Result<Receiver<Frame>, Error> {
-        debug!(stream_id, client_id, "adding client");
+        trace!(stream_id, client_id, "adding client");
         let (tx, rx) = async_channel::bounded(1);
         if let Some(stream) = self.streams.lock().get_mut(usize::from(stream_id)) {
             stream.clients.insert(client_id, tx);
-            debug!(stream_id, client_id, "client added");
+            trace!(stream_id, client_id, "client added");
             Ok(rx)
         } else {
             error!(stream_id, client_id, "client requested invalid stream");
@@ -123,7 +123,7 @@ impl StreamServerInner {
         }
     }
     fn remove_client(&self, stream_id: u16, client_id: usize) {
-        debug!(stream_id, client_id, "removing client");
+        trace!(stream_id, client_id, "removing client");
         if let Some(stream) = self.streams.lock().get_mut(usize::from(stream_id)) {
             stream.clients.remove(&client_id);
         }
@@ -132,7 +132,7 @@ impl StreamServerInner {
         self.streams.lock().len()
     }
     pub(crate) fn send_frame(&self, stream_id: u16, frame: Frame) -> Result<(), Error> {
-        debug!(stream_id, "sending frame");
+        trace!(stream_id, "sending frame");
         if frame
             .metadata
             .as_ref()
@@ -193,7 +193,7 @@ impl StreamServerInner {
         let stram_info_packed = self.stream_info_packed(stream_select.stream_id)?;
         tokio::time::timeout(self.timeout, socket.write_all(&stram_info_packed)).await??;
         let client_id = self.client_id.fetch_add(1, atomic::Ordering::Relaxed);
-        debug!(
+        trace!(
             stream_id = stream_select.stream_id,
             max_fps = stream_select.max_fps,
             client_id,
