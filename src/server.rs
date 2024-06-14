@@ -274,6 +274,7 @@ impl StreamServerInner {
             last_frame.replace(now);
             if Self::write_frame(socket, frame).is_err() {
                 self.remove_client(stream_select.stream_id, client_id);
+                break;
             }
         }
         Ok(())
