@@ -68,7 +68,6 @@ impl ClientAsync {
         tokio::time::timeout(self.timeout, self.stream.read_exact(&mut len_buf)).await??;
         let len = usize::try_from(u32::from_le_bytes(len_buf))
             .map_err(|_| Error::FrameMetaDataTooLarge)?;
-        dbg!(len);
         let metadata = if len > 0 {
             let mut buf = vec![0u8; len];
             tokio::time::timeout(self.timeout, self.stream.read_exact(&mut buf)).await??;
@@ -79,10 +78,8 @@ impl ClientAsync {
         tokio::time::timeout(self.timeout, self.stream.read_exact(&mut len_buf)).await??;
         let len =
             usize::try_from(u32::from_le_bytes(len_buf)).map_err(|_| Error::FrameDataTooLarge)?;
-        dbg!(len);
         let mut data = vec![0u8; len];
         tokio::time::timeout(self.timeout, self.stream.read_exact(&mut data)).await??;
-        dbg!(data.len());
         Ok(Frame {
             metadata: metadata.map(Into::into),
             data: data.into(),
