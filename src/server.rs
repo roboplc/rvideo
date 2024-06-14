@@ -1,28 +1,82 @@
 use std::{
     collections::BTreeMap,
-    io::Cursor,
+    io::{Cursor, Read, Write},
+    net::{TcpListener, TcpStream, ToSocketAddrs},
     sync::{atomic, Arc},
+    thread,
     time::{Duration, Instant},
 };
 
-use async_channel::{Receiver, Sender};
 use binrw::{BinRead, BinWrite};
-use parking_lot::Mutex;
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::{TcpStream, ToSocketAddrs},
-};
+use parking_lot_rt::{Condvar, Mutex};
 use tracing::{error, trace};
 
 const DEFAULT_MAX_CLIENTS: usize = 16;
 
 use crate::{Error, Format, Frame, Greetings, Stream, StreamInfo, StreamSelect, API_VERSION};
 
+#[derive(Default)]
+struct FrameValue {
+    current: Option<Frame>,
+    closed: bool,
+}
+
+#[derive(Default)]
+struct FrameCellInner {
+    value: Mutex<FrameValue>,
+    data_available: Condvar,
+}
+
+#[derive(Default)]
+struct FrameCell {
+    inner: Arc<FrameCellInner>,
+}
+
+impl Clone for FrameCell {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+impl FrameCell {
+    fn close(&self) {
+        let mut value = self.inner.value.lock();
+        value.closed = true;
+        self.inner.data_available.notify_all();
+    }
+    fn set(&self, frame: Frame) {
+        let mut value = self.inner.value.lock();
+        value.current = Some(frame);
+        self.inner.data_available.notify_one();
+    }
+    fn get(&self) -> Option<Frame> {
+        let mut value = self.inner.value.lock();
+        if value.closed {
+            return None;
+        }
+        loop {
+            if let Some(current) = value.current.take() {
+                return Some(current);
+            }
+            self.inner.data_available.wait(&mut value);
+        }
+    }
+}
+
+impl Iterator for FrameCell {
+    type Item = Frame;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.get()
+    }
+}
+
 struct StreamInternal {
     format: Format,
     width: u16,
     height: u16,
-    clients: BTreeMap<usize, Sender<Frame>>,
+    clients: BTreeMap<usize, FrameCell>,
 }
 
 /// A server instance. The crate creates a default server, however in some circumstances it might
@@ -63,22 +117,20 @@ impl Server {
         self.inner.send_frame(stream_id, frame)
     }
     /// Serve (requires a tokio runtime)
-    pub async fn serve(&self, addr: impl ToSocketAddrs + std::fmt::Debug) -> Result<(), Error> {
+    pub fn serve(&self, addr: impl ToSocketAddrs + std::fmt::Debug) -> Result<(), Error> {
         trace!(?addr, "starting server");
-        let pool = simple_pool::ResourcePool::new();
-        // move to a semaphore when robplc will be split
-        for _ in 0..self.inner.max_clients.load(atomic::Ordering::Relaxed) {
-            pool.append(());
-        }
-        let listener = tokio::net::TcpListener::bind(addr).await?;
-        while let Ok((mut socket, addr)) = listener.accept().await {
+        let semaphore = crate::semaphore::Semaphore::new(
+            self.inner.max_clients.load(atomic::Ordering::Relaxed),
+        );
+        let listener = TcpListener::bind(addr)?;
+        while let Ok((mut socket, addr)) = listener.accept() {
             trace!(?addr, "new connection");
             let inner = self.inner.clone();
-            let permission = pool.get().await;
+            let permission = semaphore.acquire();
             trace!(?addr, "handling connection");
-            tokio::spawn(async move {
+            thread::spawn(move || {
                 let _permission = permission;
-                let _r = inner.handle_connection(&mut socket).await;
+                let _r = inner.handle_connection(&mut socket);
             });
         }
         Ok(())
@@ -90,6 +142,16 @@ pub(crate) struct StreamServerInner {
     client_id: atomic::AtomicUsize,
     timeout: Duration,
     max_clients: atomic::AtomicUsize,
+}
+
+impl Drop for StreamServerInner {
+    fn drop(&mut self) {
+        for stream in &*self.streams.lock() {
+            for cell in stream.clients.values() {
+                cell.close();
+            }
+        }
+    }
 }
 
 impl StreamServerInner {
@@ -110,13 +172,13 @@ impl StreamServerInner {
         trace!(stream_id, ?format, width, height, "stream added");
         Ok(stream_id)
     }
-    fn add_client(&self, stream_id: u16, client_id: usize) -> Result<Receiver<Frame>, Error> {
+    fn add_client(&self, stream_id: u16, client_id: usize) -> Result<FrameCell, Error> {
         trace!(stream_id, client_id, "adding client");
-        let (tx, rx) = async_channel::bounded(1);
+        let frame_cell = FrameCell::default();
         if let Some(stream) = self.streams.lock().get_mut(usize::from(stream_id)) {
-            stream.clients.insert(client_id, tx);
+            stream.clients.insert(client_id, frame_cell.clone());
             trace!(stream_id, client_id, "client added");
-            Ok(rx)
+            Ok(frame_cell)
         } else {
             error!(stream_id, client_id, "client requested invalid stream");
             Err(Error::InvalidStream)
@@ -146,17 +208,13 @@ impl StreamServerInner {
         let clients = {
             let streams = self.streams.lock();
             if let Some(stream) = streams.get(usize::from(stream_id)) {
-                stream
-                    .clients
-                    .values()
-                    .cloned()
-                    .collect::<Vec<Sender<Frame>>>()
+                stream.clients.values().cloned().collect::<Vec<FrameCell>>()
             } else {
                 return Err(Error::InvalidStream);
             }
         };
         for tx in clients {
-            tx.try_send(frame.clone()).ok();
+            tx.set(frame.clone());
         }
         Ok(())
     }
@@ -184,14 +242,16 @@ impl StreamServerInner {
         si.write(&mut writer).unwrap();
         Ok(writer.into_inner())
     }
-    async fn handle_connection(&self, socket: &mut TcpStream) -> Result<(), Error> {
+    fn handle_connection(&self, socket: &mut TcpStream) -> Result<(), Error> {
         socket.set_nodelay(true)?;
-        tokio::time::timeout(self.timeout, socket.write_all(&self.greetings())).await??;
+        socket.set_read_timeout(Some(self.timeout))?;
+        socket.set_write_timeout(Some(self.timeout))?;
+        socket.write_all(&self.greetings())?;
         let stream_select_buf = &mut [0u8; 3];
-        tokio::time::timeout(self.timeout, socket.read_exact(stream_select_buf)).await??;
+        socket.read_exact(stream_select_buf)?;
         let stream_select = StreamSelect::read(&mut Cursor::new(stream_select_buf)).unwrap();
         let stram_info_packed = self.stream_info_packed(stream_select.stream_id)?;
-        tokio::time::timeout(self.timeout, socket.write_all(&stram_info_packed)).await??;
+        socket.write_all(&stram_info_packed)?;
         let client_id = self.client_id.fetch_add(1, atomic::Ordering::Relaxed);
         trace!(
             stream_id = stream_select.stream_id,
@@ -203,7 +263,7 @@ impl StreamServerInner {
             Duration::from_secs_f64(1.0 / f64::from(stream_select.max_fps));
         let rx = self.add_client(stream_select.stream_id, client_id)?;
         let mut last_frame = None;
-        while let Ok(frame) = rx.recv().await {
+        for frame in rx {
             let now = Instant::now();
             if let Some(last_frame) = last_frame {
                 let elapsed = now.duration_since(last_frame);
@@ -212,24 +272,21 @@ impl StreamServerInner {
                 }
             }
             last_frame.replace(now);
-            if self.write_frame(socket, frame).await.is_err() {
+            if Self::write_frame(socket, frame).is_err() {
                 self.remove_client(stream_select.stream_id, client_id);
             }
         }
         Ok(())
     }
-    async fn write_frame(&self, socket: &mut TcpStream, frame: Frame) -> Result<(), Error> {
+    fn write_frame(socket: &mut TcpStream, frame: Frame) -> Result<(), Error> {
         let metadata_len = u32::try_from(frame.metadata.as_ref().map_or(0, |v| v.len())).unwrap();
-        tokio::time::timeout(self.timeout, socket.write_u32_le(metadata_len)).await??;
+        socket.write_all(&metadata_len.to_le_bytes())?;
         if let Some(ref metadata) = frame.metadata {
-            tokio::time::timeout(self.timeout, socket.write_all(metadata)).await??;
+            socket.write_all(metadata)?;
         }
-        tokio::time::timeout(
-            self.timeout,
-            socket.write_u32_le(u32::try_from(frame.data.len()).unwrap()),
-        )
-        .await??;
-        tokio::time::timeout(self.timeout, socket.write_all(&frame.data)).await??;
+        let data_len = u32::try_from(frame.data.len()).unwrap();
+        socket.write_all(&data_len.to_le_bytes())?;
+        socket.write_all(&frame.data)?;
         Ok(())
     }
 }

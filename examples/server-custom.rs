@@ -16,13 +16,12 @@ struct FrameInfo {
     bounding_boxes: Vec<BoundingBox>,
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let width = 640;
     let height = 480;
     let server = Server::new(Duration::from_secs(5));
     let stream = server.add_stream(Format::Rgb8, width, height)?;
-    tokio::task::spawn_blocking(move || {
+    thread::spawn(move || {
         let mut frame_number = 0;
         let font = Font::try_from_bytes(FONT).unwrap();
         loop {
@@ -70,6 +69,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             frame_number += 1;
         }
     });
-    server.serve("127.0.0.1:3001").await?;
+    server.serve("127.0.0.1:3001")?;
     Ok(())
 }

@@ -68,6 +68,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             frame_number += 1;
         }
     });
-    rvideo::run_server("127.0.0.1:3001")?;
+    rvideo::serve("127.0.0.1:3001")?;
     Ok(())
 }

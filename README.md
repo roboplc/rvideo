@@ -26,6 +26,8 @@ overhead for an embedded application it is included into:
 
 * No any buffering is performed on the server side
 
+* Real-time-safe code is used to minimize the impact on the main application
+
 ## Clients
 
 RVideo streams can be received with clients provided by crate. For ready-to-use

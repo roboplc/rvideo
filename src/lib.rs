@@ -6,15 +6,18 @@ use std::{sync::Arc, time::Duration};
 use binrw::binrw;
 
 mod client;
+#[cfg(feature = "async")]
 mod client_async;
+mod semaphore;
 mod server;
 pub use client::Client;
+#[cfg(feature = "async")]
 pub use client_async::ClientAsync;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 pub use server::Server;
 use server::StreamServerInner;
-use tokio::net::ToSocketAddrs;
+use std::net::ToSocketAddrs;
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -30,22 +33,9 @@ pub fn send_frame(stream_id: u16, frame: Frame) -> Result<(), Error> {
     DEFAULT_SERVER.send_frame(stream_id, frame)
 }
 
-/// Serve the default server (async)
-pub async fn serve(addr: impl ToSocketAddrs + std::fmt::Debug) -> Result<(), Error> {
-    DEFAULT_SERVER.serve(addr).await
-}
-
-/// Run the default server (blocking, creates a new tokio runtime inside)
-///
-/// # Panics
-///
-/// Will panic if tokio runtime is unable to start
-pub fn run_server(addr: impl ToSocketAddrs + std::fmt::Debug) -> Result<(), Error> {
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(serve(addr))
+/// Serve the default server
+pub fn serve(addr: impl ToSocketAddrs + std::fmt::Debug) -> Result<(), Error> {
+    DEFAULT_SERVER.serve(addr)
 }
 
 /// Video frame
@@ -130,6 +120,7 @@ pub enum Error {
     NotReady,
     /// Async timeouts
     #[error("Timed out")]
+    #[cfg(feature = "async")]
     AsyncTimeout(#[from] tokio::time::error::Elapsed),
 }
 

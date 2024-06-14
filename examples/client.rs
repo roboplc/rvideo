@@ -6,6 +6,7 @@ use serde_json::Value;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = rvideo::Client::connect("127.0.0.1:3001", Duration::from_secs(5))?;
     let info = client.select_stream(0, 5)?;
+    println!("{}", info);
     let width: u32 = u32::from(info.width);
     let height: u32 = u32::from(info.height);
     for (c, frame) in client.enumerate() {
