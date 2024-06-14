@@ -1,6 +1,6 @@
 [package]
 name = "rvideo"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 authors = ["Serhij S. <div@altertech.com>"]
 license = "Apache-2.0"
@@ -23,7 +23,7 @@ thiserror = "1.0.61"
 tracing = "0.1.40"
 serde = { version = "1.0.203", features = ["derive"] }
 once_cell = "1.19.0"
-tokio = { version = "1.38.0", features = ["net"], optional = true }
+tokio = { version = "1.38.0", features = ["net", "io-util", "time"], optional = true }
 
 [features]
 async = ["tokio"]
