@@ -8,69 +8,15 @@ use std::{
 };
 
 use binrw::{BinRead, BinWrite};
-use parking_lot_rt::{Condvar, Mutex};
+use parking_lot_rt::Mutex;
+use rtsc::{cell::DataCell, semaphore::Semaphore};
 use tracing::{error, trace};
 
 const DEFAULT_MAX_CLIENTS: usize = 16;
 
 use crate::{Error, Format, Frame, Greetings, Stream, StreamInfo, StreamSelect, API_VERSION};
 
-#[derive(Default)]
-struct FrameValue {
-    current: Option<Frame>,
-    closed: bool,
-}
-
-#[derive(Default)]
-struct FrameCellInner {
-    value: Mutex<FrameValue>,
-    data_available: Condvar,
-}
-
-#[derive(Default)]
-struct FrameCell {
-    inner: Arc<FrameCellInner>,
-}
-
-impl Clone for FrameCell {
-    fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-        }
-    }
-}
-
-impl FrameCell {
-    fn close(&self) {
-        let mut value = self.inner.value.lock();
-        value.closed = true;
-        self.inner.data_available.notify_all();
-    }
-    fn set(&self, frame: Frame) {
-        let mut value = self.inner.value.lock();
-        value.current = Some(frame);
-        self.inner.data_available.notify_one();
-    }
-    fn get(&self) -> Option<Frame> {
-        let mut value = self.inner.value.lock();
-        if value.closed {
-            return None;
-        }
-        loop {
-            if let Some(current) = value.current.take() {
-                return Some(current);
-            }
-            self.inner.data_available.wait(&mut value);
-        }
-    }
-}
-
-impl Iterator for FrameCell {
-    type Item = Frame;
-    fn next(&mut self) -> Option<Self::Item> {
-        self.get()
-    }
-}
+type FrameCell = DataCell<Frame>;
 
 struct StreamInternal {
     format: Format,
@@ -119,9 +65,7 @@ impl Server {
     /// Serve (requires a tokio runtime)
     pub fn serve(&self, addr: impl ToSocketAddrs + std::fmt::Debug) -> Result<(), Error> {
         trace!(?addr, "starting server");
-        let semaphore = crate::semaphore::Semaphore::new(
-            self.inner.max_clients.load(atomic::Ordering::Relaxed),
-        );
+        let semaphore = Semaphore::new(self.inner.max_clients.load(atomic::Ordering::Relaxed));
         let listener = TcpListener::bind(addr)?;
         while let Ok((mut socket, addr)) = listener.accept() {
             trace!(?addr, "new connection");

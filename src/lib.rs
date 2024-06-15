@@ -8,7 +8,6 @@ use binrw::binrw;
 mod client;
 #[cfg(feature = "async")]
 mod client_async;
-mod semaphore;
 mod server;
 pub use client::Client;
 #[cfg(feature = "async")]
