@@ -95,6 +95,9 @@ impl Iterator for Client {
         if let Err(e) = self.stream.read_exact(&mut data) {
             return Some(Err(e.into()));
         }
+        if let Err(e) = self.stream.write_all(&[0u8; 1]) {
+            return Some(Err(e.into()));
+        }
         Some(Ok(Frame {
             metadata: metadata.map(Into::into),
             data: data.into(),

@@ -85,7 +85,7 @@ impl Frame {
 }
 
 /// Server API version
-pub const API_VERSION: u8 = 1;
+pub const API_VERSION: u8 = 2;
 
 /// Error type
 #[derive(thiserror::Error, Debug)]

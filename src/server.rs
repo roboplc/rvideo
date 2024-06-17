@@ -232,6 +232,11 @@ impl StreamServerInner {
         let data_len = u32::try_from(frame.data.len()).unwrap();
         socket.write_all(&data_len.to_le_bytes())?;
         socket.write_all(&frame.data)?;
+        let mut buf = [0u8; 1];
+        socket.read_exact(&mut buf)?;
+        if buf[0] != 0 {
+            return Err(Error::NotReady);
+        }
         Ok(())
     }
 }

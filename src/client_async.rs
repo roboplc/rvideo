@@ -80,6 +80,7 @@ impl ClientAsync {
             usize::try_from(u32::from_le_bytes(len_buf)).map_err(|_| Error::FrameDataTooLarge)?;
         let mut data = vec![0u8; len];
         tokio::time::timeout(self.timeout, self.stream.read_exact(&mut data)).await??;
+        tokio::time::timeout(self.timeout, self.stream.write_all(&[0u8; 1])).await??;
         Ok(Frame {
             metadata: metadata.map(Into::into),
             data: data.into(),

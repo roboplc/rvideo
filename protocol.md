@@ -18,7 +18,8 @@ to communicate with each other.
 
 * Server-to-client: STREAM-INFO
 
-* Server: starts sending frames
+* Server: starts sending frames. To avoid flooding, each frame must be
+  acknowledged by the client before the next one is sent.
 
 ## Structures
 
@@ -102,3 +103,8 @@ For raw formats, the picture length is always the same, however the protocol
 sends the length for each picture data block to allow compressed formats.
 
 The max picture size is `u32::MAX` bytes.
+
+### Acknowledgment
+
+After receiving the frame, the client must send an acknowledgment to the
+server. The acknowledgment is a single byte 0x00.
