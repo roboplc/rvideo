@@ -123,7 +123,7 @@ pub enum Error {
     AsyncTimeout(#[from] tokio::time::error::Elapsed),
 }
 
-/// Video formats. Note: a frame should be MANUALLY encoded/compressed with the selected format
+/// Video formats. Note: a frame MUST be MANUALLY encoded/compressed with the selected format
 /// BEFORE sending
 #[binrw]
 #[br(repr = u8)]
