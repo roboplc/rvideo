@@ -62,7 +62,7 @@ impl Server {
     pub fn send_frame(&self, stream_id: u16, frame: Frame) -> Result<(), Error> {
         self.inner.send_frame(stream_id, frame)
     }
-    /// Serve (requires a tokio runtime)
+    /// Run the server
     pub fn serve(&self, addr: impl ToSocketAddrs + std::fmt::Debug) -> Result<(), Error> {
         trace!(?addr, "starting server");
         let semaphore = Semaphore::new(self.inner.max_clients.load(atomic::Ordering::Relaxed));
