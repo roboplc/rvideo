@@ -23,7 +23,7 @@ const FPS_REPORT_DELAY: Duration = Duration::from_secs(1);
 
 #[derive(Parser)]
 struct Args {
-    #[clap()]
+    #[clap(help = "HOST[:PORT], the default port is 3001")]
     source: String,
     #[clap(long, default_value = "255")]
     max_fps: u8,
@@ -120,11 +120,14 @@ fn handle_connection(
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
-    println!("Source: {}", args.source);
-    let mut client =
-        rvideo::Client::connect(&args.source, Duration::from_secs(args.timeout.into()))?;
+    let mut source = args.source;
+    if !source.contains(':') {
+        source = format!("{}:3001", source);
+    }
+    println!("Source: {}", source);
+    let mut client = rvideo::Client::connect(&source, Duration::from_secs(args.timeout.into()))?;
     let stream_info = client.select_stream(args.stream_id, args.max_fps)?;
-    println!("Stream connected: {} {}", args.source, stream_info);
+    println!("Stream connected: {} {}", source, stream_info);
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([
             f32::from(stream_info.width) + 40.0,
@@ -144,14 +147,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(code);
     });
     eframe::run_native(
-        &format!("{}/{} - rvideo", args.source, args.stream_id),
+        &format!("{}/{} - rvideo", source, args.stream_id),
         options,
         Box::new(|cc| {
             egui_extras::install_image_loaders(&cc.egui_ctx);
             Box::new(MyApp {
                 rx,
                 stream_info,
-                source: args.source,
+                source,
                 last_frame: None,
                 fps: <_>::default(),
             })
