@@ -157,6 +157,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 source,
                 last_frame: None,
                 fps: <_>::default(),
+                anim: 0,
             })
         }),
     )?;
@@ -188,12 +189,20 @@ struct MyApp {
     source: String,
     last_frame: Option<Instant>,
     fps: Vec<(Instant, u8)>,
+    anim: usize,
 }
+
+const ANIMATION: &[char] = &['|', '/', '-', '\\'];
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let (img, maybe_meta) = self.rx.recv().unwrap();
         let now = Instant::now();
+        let anim_char = ANIMATION[self.anim];
+        self.anim += 1;
+        if self.anim >= ANIMATION.len() {
+            self.anim = 0;
+        }
         let time_between_frames = self.last_frame.map(|t| now - t);
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let last_fps = time_between_frames.map_or(0, |t| (1.0 / t.as_secs_f64()) as u8);
@@ -210,8 +219,8 @@ impl eframe::App for MyApp {
             egui::ScrollArea::both().show(ui, |ui| {
                 let texture = ui.ctx().load_texture("frame", img, <_>::default());
                 ui.label(format!(
-                    "Stream: {} {}, Actual FPS: {}",
-                    self.source, self.stream_info, fps
+                    "Stream: {} {}, Actual FPS: {}  {}",
+                    self.source, self.stream_info, fps, anim_char
                 ));
                 ui.image(&texture);
                 if let Some(meta) = maybe_meta {
