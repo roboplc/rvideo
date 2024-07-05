@@ -18,7 +18,6 @@ features = ["full"]
 
 [dependencies]
 binrw = "0.13.3"
-parking_lot_rt = "0.12.1"
 thiserror = "1.0.61"
 tracing = "0.1.40"
 serde = { version = "1.0.203", features = ["derive"] }

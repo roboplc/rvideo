@@ -8,7 +8,7 @@ use std::{
 };
 
 use binrw::{BinRead, BinWrite};
-use parking_lot_rt::Mutex;
+use rtsc::locking::Mutex;
 use rtsc::{cell::DataCell, semaphore::Semaphore};
 use tracing::{error, trace};
 
