@@ -8,7 +8,6 @@ use std::{
 };
 
 use binrw::{BinRead, BinWrite};
-use rtsc::locking::Mutex;
 use rtsc::{cell::DataCell, semaphore::Semaphore};
 use tracing::{error, trace};
 
@@ -16,7 +15,7 @@ const DEFAULT_MAX_CLIENTS: usize = 16;
 
 use crate::{Error, Format, Frame, Greetings, Stream, StreamInfo, StreamSelect, API_VERSION};
 
-type FrameCell = DataCell<Frame>;
+type FrameCell = DataCell<Frame, crate::RawMutex, crate::Condvar>;
 
 struct StreamInternal {
     format: Format,
@@ -65,7 +64,8 @@ impl Server {
     /// Run the server
     pub fn serve(&self, addr: impl ToSocketAddrs + std::fmt::Debug) -> Result<(), Error> {
         trace!(?addr, "starting server");
-        let semaphore = Semaphore::new(self.inner.max_clients.load(atomic::Ordering::Relaxed));
+        let semaphore: Semaphore<crate::RawMutex, crate::Condvar> =
+            Semaphore::new(self.inner.max_clients.load(atomic::Ordering::Relaxed));
         let listener = TcpListener::bind(addr)?;
         while let Ok((mut socket, addr)) = listener.accept() {
             trace!(?addr, "new connection");
@@ -82,7 +82,7 @@ impl Server {
 }
 
 pub(crate) struct StreamServerInner {
-    streams: Mutex<Vec<StreamInternal>>,
+    streams: crate::Mutex<Vec<StreamInternal>>,
     client_id: atomic::AtomicUsize,
     timeout: Duration,
     max_clients: atomic::AtomicUsize,

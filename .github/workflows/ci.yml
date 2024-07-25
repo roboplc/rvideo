@@ -17,8 +17,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: cargo test
-        run: cargo test --all-features --all-targets
+      - name: cargo test default
+        run: cargo test --all-targets
+      - name: cargo test locking-rt
+        run: cargo test --no-default-features --all-features -F locking-rt
+      - name: cargo test locking-rt-safe
+        run: cargo test --no-default-features --all-features -F locking-rt-safe
   fmt:
     runs-on: ubuntu-latest
     steps:
