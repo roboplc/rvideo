@@ -33,6 +33,20 @@ overhead for an embedded application it is included into:
 RVideo streams can be received with clients provided by crate. For ready-to-use
 UI, see the [`rvideo-view`](https://crates.io/crates/rvideo-view) crate.
 
+## Locking safety
+
+By default, the server uses [parking_lot](https://crates.io/crates/parking_lot)
+for locking. For real-time applications, the following features are available:
+
+* `locking-rt` - use [parking_lot_rt](https://crates.io/crates/parking_lot_rt)
+  crate which is a spin-free fork of parking_lot.
+
+* `locking-rt-safe` - use [rtsc](https://crates.io/crates/rtsc)
+  priority-inheritance locking, which is not affected by priority inversion
+  (Linux only).
+
+Note: to switch locking policy, disable the crate default features.
+
 ## About
 
 RVideo is a part of [RoboPLC](https://www.roboplc.com/) project.

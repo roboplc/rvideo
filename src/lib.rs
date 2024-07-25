@@ -18,14 +18,14 @@ pub use server::Server;
 use server::StreamServerInner;
 use std::net::ToSocketAddrs;
 
-#[cfg(feature = "locking-rt-safe")]
-use rtsc::pi::{Condvar, Mutex, RawMutex};
+#[cfg(feature = "locking-default")]
+use parking_lot::{Condvar, Mutex, RawMutex};
 
 #[cfg(feature = "locking-rt")]
 use parking_lot_rt::{Condvar, Mutex, RawMutex};
 
-#[cfg(feature = "locking-default")]
-use parking_lot::{Condvar, Mutex, RawMutex};
+#[cfg(feature = "locking-rt-safe")]
+use rtsc::pi::{Condvar, Mutex, RawMutex};
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
 
