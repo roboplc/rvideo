@@ -20,9 +20,9 @@ jobs:
       - name: cargo test default
         run: cargo test --all-targets
       - name: cargo test locking-rt
-        run: cargo test --no-default-features --all-features -F locking-rt
+        run: cargo test --no-default-features --all-targets -F locking-rt
       - name: cargo test locking-rt-safe
-        run: cargo test --no-default-features --all-features -F locking-rt-safe
+        run: cargo test --no-default-features --all-targets -F locking-rt-safe
   fmt:
     runs-on: ubuntu-latest
     steps:
