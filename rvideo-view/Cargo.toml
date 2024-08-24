@@ -1,6 +1,6 @@
 [package]
 name = "rvideo-view"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 authors = ["Serhij S. <div@altertech.com>"]
 license = "Apache-2.0"
@@ -10,10 +10,10 @@ keywords = ["realtime", "video", "roboplc", "plc", "industrial"]
 readme = "README.md"
 
 [dependencies]
-clap = { version = "4.5.6", features = ["derive"] }
-eframe = "0.27.2"
-egui = "0.27.2"
-egui_extras = { version = "0.27.2", features = ["default", "all_loaders"] }
+clap = { version = "4.5.16", features = ["derive"] }
+eframe = "0.28.1"
+egui = "0.28.1"
+egui_extras = { version = "0.28.1", features = ["default", "all_loaders"] }
 image = { version = "0.25.2", features = ["jpeg"] }
 imageproc = "0.24"
 rmp-serde = "1.3.0"

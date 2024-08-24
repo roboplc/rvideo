@@ -145,14 +145,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         options,
         Box::new(|cc| {
             egui_extras::install_image_loaders(&cc.egui_ctx);
-            Box::new(MyApp {
+            Ok(Box::new(MyApp {
                 rx,
                 stream_info,
                 source,
                 last_frame: None,
                 fps: <_>::default(),
                 anim: 0,
-            })
+            }))
         }),
     )?;
     Ok(())
