@@ -13,7 +13,7 @@ use std::{
 use clap::Parser;
 use eframe::egui;
 use egui::ColorImage;
-use image::{DynamicImage, ImageBuffer, Rgb, RgbImage};
+use image::{DynamicImage, ImageBuffer, ImageReader, Rgb, RgbImage};
 use imageproc::{drawing::draw_hollow_rect_mut, rect::Rect};
 use rvideo::{BoundingBox, StreamInfo};
 use serde::Deserialize;
@@ -81,16 +81,10 @@ fn handle_connection(
             )
             .into(),
             rvideo::Format::MJpeg => {
-                #[cfg(feature = "jpeg")]
-                {
-                    turbojpeg::decompress_image(&img_data).unwrap()
-                }
-                #[cfg(not(feature = "jpeg"))]
-                {
-                    unimplemented!(
-                        "MJpeg format is not supported, build the binary with 'jpeg' feature"
-                    )
-                }
+                let buf = std::io::Cursor::new(img_data);
+                let mut reader = ImageReader::new(buf);
+                reader.set_format(image::ImageFormat::Jpeg);
+                reader.decode()?.into()
             }
         };
         let mut meta: Option<Value> = frame.metadata.and_then(|m| rmp_serde::from_slice(&m).ok());

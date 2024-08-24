@@ -1,6 +1,6 @@
 [package]
 name = "rvideo-view"
-version = "0.4.3"
+version = "0.5.0"
 edition = "2021"
 authors = ["Serhij S. <div@altertech.com>"]
 license = "Apache-2.0"
@@ -14,17 +14,12 @@ clap = { version = "4.5.6", features = ["derive"] }
 eframe = "0.27.2"
 egui = "0.27.2"
 egui_extras = { version = "0.27.2", features = ["default", "all_loaders"] }
-image = "0.24"
-imageproc = "0.23"
+image = { version = "0.25.2", features = ["jpeg"] }
+imageproc = "0.24"
 rmp-serde = "1.3.0"
 rvideo = { version = "0.4" }
 serde = "1.0.203"
 serde_json = "1.0.117"
-turbojpeg = { version = "=1.1.0", features = ["image"], optional = true }
-
-[features]
-jpeg = ["turbojpeg"]
-full = ["jpeg"]
 
 [profile.release]
 strip = true

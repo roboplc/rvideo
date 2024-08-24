@@ -50,7 +50,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: cargo test
-        run: cd rvideo-view && sudo apt-get -y install nasm && cargo test --verbose --all-features --all-targets
+        run: cd rvideo-view && cargo test --verbose --all-features --all-targets
   view-fmt:
     runs-on: ubuntu-latest
     steps:
