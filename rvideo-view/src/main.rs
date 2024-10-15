@@ -9,7 +9,7 @@ use std::{
 
 use clap::Parser;
 use eframe::egui;
-use egui::ColorImage;
+use egui::{Button, ColorImage};
 use image::{DynamicImage, ImageBuffer, ImageReader, Rgb, RgbImage};
 use imageproc::{drawing::draw_hollow_rect_mut, rect::Rect};
 use rvideo::{BoundingBox, StreamInfo};
@@ -39,7 +39,7 @@ fn vec_u8_to_vec_u16(input: Vec<u8>) -> Vec<u16> {
 
 fn handle_connection(
     client: rvideo::Client,
-    tx: Sender<(ColorImage, Option<Value>)>,
+    tx: Sender<(RgbImage, Option<Value>, u32, u32)>,
     stream_info: StreamInfo,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let width = stream_info.width.into();
@@ -100,11 +100,7 @@ fn handle_connection(
                 }
             }
         }
-        let img = ColorImage::from_rgb(
-            [width.try_into().unwrap(), height.try_into().unwrap()],
-            &img,
-        );
-        tx.send((img, meta))?;
+        tx.send((img, meta, width, height))?;
     }
     Ok(())
 }
@@ -149,6 +145,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 last_frame: None,
                 fps: <_>::default(),
                 anim: 0,
+                captured_number: 0,
             }))
         }),
     )?;
@@ -175,19 +172,24 @@ fn format_value(value: Value, join_object: &str) -> String {
 }
 
 struct MyApp {
-    rx: Receiver<(ColorImage, Option<Value>)>,
+    rx: Receiver<(RgbImage, Option<Value>, u32, u32)>,
     stream_info: StreamInfo,
     source: String,
     last_frame: Option<Instant>,
     fps: Vec<(Instant, u8)>,
     anim: usize,
+    captured_number: u32,
 }
 
 const ANIMATION: &[char] = &['|', '/', '-', '\\'];
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let (img, maybe_meta) = self.rx.recv().unwrap();
+        let (rgb_img, maybe_meta, width, height) = self.rx.recv().unwrap();
+        let egui_img = ColorImage::from_rgb(
+            [width.try_into().unwrap(), height.try_into().unwrap()],
+            &rgb_img,
+        );
         let now = Instant::now();
         let anim_char = ANIMATION[self.anim];
         self.anim += 1;
@@ -208,7 +210,12 @@ impl eframe::App for MyApp {
             / self.fps.len();
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::both().show(ui, |ui| {
-                let texture = ui.ctx().load_texture("frame", img, <_>::default());
+                let texture = ui.ctx().load_texture("frame", egui_img, <_>::default());
+                if ui.add(Button::new("Capture")).clicked() {
+                    self.captured_number += 1;
+                    let fname = format!("capture-{}.png", self.captured_number);
+                    rgb_img.save(fname).unwrap();
+                }
                 ui.label(format!(
                     "Stream: {} {}, Actual FPS: {}  {}",
                     self.source, self.stream_info, fps, anim_char
