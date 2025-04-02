@@ -1,5 +1,6 @@
 use std::{
     sync::{
+        atomic,
         mpsc::{channel, Receiver, Sender},
         Arc,
     },
@@ -9,7 +10,7 @@ use std::{
 
 use clap::Parser;
 use eframe::egui;
-use egui::{Button, ColorImage};
+use egui::{Button, Color32, ColorImage, RichText};
 use image::{DynamicImage, ImageBuffer, ImageReader, Rgb, RgbImage};
 use imageproc::{drawing::draw_hollow_rect_mut, rect::Rect};
 use rvideo::{BoundingBox, StreamInfo};
@@ -17,6 +18,8 @@ use serde::Deserialize;
 use serde_json::Value;
 
 const FPS_REPORT_DELAY: Duration = Duration::from_secs(1);
+
+type MaybeFrame = Option<(RgbImage, Option<Value>, u32, u32)>;
 
 #[derive(Parser)]
 struct Args {
@@ -28,6 +31,8 @@ struct Args {
     timeout: u16,
     #[clap(long, default_value = "0")]
     stream_id: u16,
+    #[clap(short = 'r', long, default_value = "false")]
+    auto_reconnect: bool,
 }
 
 fn vec_u8_to_vec_u16(input: Vec<u8>) -> Vec<u16> {
@@ -39,7 +44,7 @@ fn vec_u8_to_vec_u16(input: Vec<u8>) -> Vec<u16> {
 
 fn handle_connection(
     client: rvideo::Client,
-    tx: Sender<(RgbImage, Option<Value>, u32, u32)>,
+    tx: Sender<MaybeFrame>,
     stream_info: StreamInfo,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let width = stream_info.width.into();
@@ -100,9 +105,39 @@ fn handle_connection(
                 }
             }
         }
-        tx.send((img, meta, width, height))?;
+        tx.send(Some((img, meta, width, height)))?;
     }
     Ok(())
+}
+
+fn connect(
+    source: &str,
+    timeout: Duration,
+    stream_id: u16,
+    max_fps: u8,
+    auto_reconnect: bool,
+) -> Result<(rvideo::Client, StreamInfo), Box<dyn std::error::Error>> {
+    loop {
+        println!("Connecting to {}...", source);
+        match rvideo::Client::connect(source, timeout) {
+            Ok(mut v) => match v.select_stream(stream_id, max_fps) {
+                Ok(stream_info) => return Ok((v, stream_info)),
+                Err(e) => {
+                    eprintln!("Stream selection error: {:?}", e);
+                    if !auto_reconnect {
+                        return Err(e.into());
+                    }
+                }
+            },
+            Err(e) => {
+                eprintln!("Connection error: {:?}", e);
+                if !auto_reconnect {
+                    return Err(e.into());
+                }
+            }
+        }
+        thread::sleep(Duration::from_millis(500));
+    }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -111,9 +146,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if !source.contains(':') {
         source = format!("{}:3001", source);
     }
+    let auto_reconnect = args.auto_reconnect;
     println!("Source: {}", source);
-    let mut client = rvideo::Client::connect(&source, Duration::from_secs(args.timeout.into()))?;
-    let stream_info = client.select_stream(args.stream_id, args.max_fps)?;
+    let timeout = Duration::from_secs(u64::from(args.timeout));
+    let (mut client, stream_info) = connect(
+        &source,
+        timeout,
+        args.stream_id,
+        args.max_fps,
+        auto_reconnect,
+    )?;
     println!("Stream connected: {} {}", source, stream_info);
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([
@@ -123,15 +165,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..Default::default()
     };
     let (tx, rx) = channel();
-    let stream_info_c = stream_info.clone();
+    let mut stream_info_c = stream_info.clone();
+    let source_c = source.clone();
+    let online_beacon = Arc::new(atomic::AtomicBool::new(true));
+    let online_beacon_c = online_beacon.clone();
     thread::spawn(move || {
-        let code = if let Err(e) = handle_connection(client, tx, stream_info_c) {
+        while let Err(e) = handle_connection(client, tx.clone(), stream_info_c) {
+            online_beacon_c.store(false, atomic::Ordering::Relaxed);
+            tx.send(None).unwrap();
             eprintln!("Error: {:?}", e);
-            1
-        } else {
-            0
-        };
-        std::process::exit(code);
+            if !auto_reconnect {
+                break;
+            }
+            (client, stream_info_c) = connect(
+                &source_c,
+                timeout,
+                args.stream_id,
+                args.max_fps,
+                auto_reconnect,
+            )
+            .expect("Reconnect failed");
+            online_beacon_c.store(true, atomic::Ordering::Relaxed);
+        }
     });
     eframe::run_native(
         &format!("{}/{} - rvideo", source, args.stream_id),
@@ -146,6 +201,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 fps: <_>::default(),
                 anim: 0,
                 captured_number: 0,
+                online_beacon,
             }))
         }),
     )?;
@@ -172,20 +228,43 @@ fn format_value(value: Value, join_object: &str) -> String {
 }
 
 struct MyApp {
-    rx: Receiver<(RgbImage, Option<Value>, u32, u32)>,
+    rx: Receiver<MaybeFrame>,
     stream_info: StreamInfo,
     source: String,
     last_frame: Option<Instant>,
     fps: Vec<(Instant, u8)>,
     anim: usize,
     captured_number: u32,
+    online_beacon: Arc<atomic::AtomicBool>,
 }
 
 const ANIMATION: &[char] = &['|', '/', '-', '\\'];
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let (rgb_img, maybe_meta, width, height) = self.rx.recv().unwrap();
+        let (rgb_img, maybe_meta, width, height) = match self.rx.recv() {
+            Ok(Some((rgb_img, maybe_meta, width, height))) => {
+                self.stream_info.width = width.try_into().unwrap();
+                self.stream_info.height = height.try_into().unwrap();
+                (rgb_img, maybe_meta, width, height)
+            }
+            Ok(None) => {
+                self.last_frame = None;
+                self.fps.clear();
+                (
+                    RgbImage::new(
+                        self.stream_info.width.into(),
+                        self.stream_info.height.into(),
+                    ),
+                    None,
+                    self.stream_info.width.into(),
+                    self.stream_info.height.into(),
+                )
+            }
+            Err(_) => {
+                std::process::exit(1);
+            }
+        };
         let egui_img = ColorImage::from_rgb(
             [width.try_into().unwrap(), height.try_into().unwrap()],
             &rgb_img,
@@ -211,11 +290,24 @@ impl eframe::App for MyApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::both().show(ui, |ui| {
                 let texture = ui.ctx().load_texture("frame", egui_img, <_>::default());
-                if ui.add(Button::new("Capture")).clicked() {
-                    self.captured_number += 1;
-                    let fname = format!("capture-{}.png", self.captured_number);
-                    rgb_img.save(fname).unwrap();
-                }
+                ui.horizontal(|ui| {
+                    let online = self.online_beacon.load(atomic::Ordering::Relaxed);
+                    let text = if online {
+                        RichText::new("ONLINE")
+                            .color(Color32::BLACK)
+                            .background_color(Color32::GREEN)
+                    } else {
+                        RichText::new("OFFLINE")
+                            .color(Color32::BLACK)
+                            .background_color(Color32::GRAY)
+                    };
+                    ui.label(text);
+                    if ui.add(Button::new("Capture")).clicked() {
+                        self.captured_number += 1;
+                        let fname = format!("capture-{}.png", self.captured_number);
+                        rgb_img.save(fname).unwrap();
+                    }
+                });
                 ui.label(format!(
                     "Stream: {} {}, Actual FPS: {}  {}",
                     self.source, self.stream_info, fps, anim_char
