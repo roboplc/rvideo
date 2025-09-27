@@ -8,18 +8,61 @@ use std::{
     time::{Duration, Instant},
 };
 
+use ab_glyph::FontRef;
 use clap::Parser;
 use eframe::egui;
 use egui::{Button, Color32, ColorImage, RichText};
 use image::{DynamicImage, ImageBuffer, ImageReader, Rgb, RgbImage};
-use imageproc::{drawing::draw_hollow_rect_mut, rect::Rect};
+use imageproc::{
+    drawing::{draw_filled_rect_mut, draw_hollow_rect_mut, draw_text_mut, text_size},
+    rect::Rect,
+};
 use rvideo::{BoundingBox, StreamInfo};
 use serde::Deserialize;
 use serde_json::Value;
 
 const FPS_REPORT_DELAY: Duration = Duration::from_secs(1);
+const FONT_TTF: &[u8] = include_bytes!("../fonts/DejaVuSans.ttf");
 
 type MaybeFrame = Option<(RgbImage, Option<Value>, u32, u32)>;
+
+#[derive(Default)]
+struct Controls {
+    inner: Arc<ControlsInner>,
+}
+
+impl Clone for Controls {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+impl Controls {
+    fn show_labels(&self) -> bool {
+        self.inner.show_labels.load(atomic::Ordering::Relaxed)
+    }
+    fn set_show_labels(&self, v: bool) {
+        self.inner.show_labels.store(v, atomic::Ordering::Relaxed);
+    }
+    fn toggle_show_labels(&self) {
+        let v = !self.show_labels();
+        self.set_show_labels(v);
+    }
+}
+
+struct ControlsInner {
+    show_labels: atomic::AtomicBool,
+}
+
+impl Default for ControlsInner {
+    fn default() -> Self {
+        Self {
+            show_labels: atomic::AtomicBool::new(true),
+        }
+    }
+}
 
 #[derive(Parser)]
 struct Args {
@@ -33,6 +76,8 @@ struct Args {
     stream_id: u16,
     #[clap(short = 'r', long, default_value = "false")]
     auto_reconnect: bool,
+    #[clap(long)]
+    hide_labels: bool,
 }
 
 fn vec_u8_to_vec_u16(input: Vec<u8>) -> Vec<u16> {
@@ -46,9 +91,11 @@ fn handle_connection(
     client: rvideo::Client,
     tx: Sender<MaybeFrame>,
     stream_info: StreamInfo,
+    controls: Controls,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let width = stream_info.width.into();
     let height = stream_info.height.into();
+    let font = FontRef::try_from_slice(FONT_TTF).unwrap();
     for frame in client {
         let frame = frame?;
         let img_data = Arc::try_unwrap(frame.data).unwrap();
@@ -102,6 +149,47 @@ fn handle_connection(
                             .of_size(bbox.width.into(), bbox.height.into()),
                         Rgb(bbox.color),
                     );
+                    if !controls.show_labels() {
+                        continue;
+                    }
+                    let mut label = bbox.label.unwrap_or_default();
+                    if let Some(conf) = bbox.confidence {
+                        label.push(' ');
+                        label.push_str(format!("{:.2}", conf).as_str());
+                    }
+                    if !label.is_empty() {
+                        let (mut label_w, mut label_h) = text_size(12.0, &font, &label);
+                        label_w += 4;
+                        label_h += 4;
+                        let label_x = if label_w + u32::from(bbox.x) > width {
+                            width - label_w - 1
+                        } else {
+                            bbox.x.into()
+                        };
+                        let label_y = if u32::from(bbox.y) > label_h {
+                            u32::from(bbox.y) - label_h
+                        } else {
+                            (bbox.y + bbox.height).into()
+                        };
+                        draw_filled_rect_mut(
+                            &mut img,
+                            Rect::at(
+                                label_x.try_into().unwrap_or_default(),
+                                label_y.try_into().unwrap_or_default(),
+                            )
+                            .of_size(label_w, label_h),
+                            Rgb(bbox.color),
+                        );
+                        draw_text_mut(
+                            &mut img,
+                            Rgb([0, 0, 0]),
+                            i32::try_from(label_x).unwrap_or_default() + 2,
+                            i32::try_from(label_y).unwrap_or_default() + 2,
+                            ab_glyph::PxScale::from(12.0),
+                            &font,
+                            &label,
+                        );
+                    }
                 }
             }
         }
@@ -143,6 +231,10 @@ fn connect(
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     let mut source = args.source;
+    let controls = Controls::default();
+    if args.hide_labels {
+        controls.set_show_labels(false);
+    }
     if !source.contains(':') {
         source = format!("{}:3001", source);
     }
@@ -169,23 +261,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let source_c = source.clone();
     let online_beacon = Arc::new(atomic::AtomicBool::new(true));
     let online_beacon_c = online_beacon.clone();
-    thread::spawn(move || {
-        while let Err(e) = handle_connection(client, tx.clone(), stream_info_c) {
-            online_beacon_c.store(false, atomic::Ordering::Relaxed);
-            tx.send(None).unwrap();
-            eprintln!("Error: {:?}", e);
-            if !auto_reconnect {
-                break;
+    thread::spawn({
+        let controls = controls.clone();
+        move || {
+            while let Err(e) =
+                handle_connection(client, tx.clone(), stream_info_c, controls.clone())
+            {
+                online_beacon_c.store(false, atomic::Ordering::Relaxed);
+                tx.send(None).unwrap();
+                eprintln!("Error: {:?}", e);
+                if !auto_reconnect {
+                    break;
+                }
+                (client, stream_info_c) = connect(
+                    &source_c,
+                    timeout,
+                    args.stream_id,
+                    args.max_fps,
+                    auto_reconnect,
+                )
+                .expect("Reconnect failed");
+                online_beacon_c.store(true, atomic::Ordering::Relaxed);
             }
-            (client, stream_info_c) = connect(
-                &source_c,
-                timeout,
-                args.stream_id,
-                args.max_fps,
-                auto_reconnect,
-            )
-            .expect("Reconnect failed");
-            online_beacon_c.store(true, atomic::Ordering::Relaxed);
         }
     });
     eframe::run_native(
@@ -202,6 +299,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 anim: 0,
                 captured_number: 0,
                 online_beacon,
+                controls,
             }))
         }),
     )?;
@@ -236,6 +334,7 @@ struct MyApp {
     anim: usize,
     captured_number: u32,
     online_beacon: Arc<atomic::AtomicBool>,
+    controls: Controls,
 }
 
 const ANIMATION: &[char] = &['|', '/', '-', '\\'];
@@ -306,6 +405,14 @@ impl eframe::App for MyApp {
                         self.captured_number += 1;
                         let fname = format!("capture-{}.png", self.captured_number);
                         rgb_img.save(fname).unwrap();
+                    }
+                    let labels = if self.controls.show_labels() {
+                        "Hide Labels"
+                    } else {
+                        "Show Labels"
+                    };
+                    if ui.add(Button::new(labels)).clicked() {
+                        self.controls.toggle_show_labels();
                     }
                 });
                 ui.label(format!(
