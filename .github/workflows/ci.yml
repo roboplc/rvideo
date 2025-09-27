@@ -27,12 +27,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Install rustfmt
+        run: rustup component add rustfmt
       - name: cargo fmt
         run: cargo fmt --check
   clippy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Install clippy
+        run: rustup component add clippy
       - name: cargo clippy
         run: |
           cargo clippy -F async --all-targets -- -W clippy::all -W clippy::pedantic \
@@ -55,12 +59,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Install rustfmt
+        run: rustup component add rustfmt
       - name: cargo fmt
         run: cd rvideo-view && cargo fmt --check
   view-clippy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Install clippy
+        run: rustup component add clippy
       - name: cargo clippy
         run: |
           cd rvideo-view && cargo clippy --all-targets -- -W clippy::all -W clippy::pedantic \
