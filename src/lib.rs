@@ -176,6 +176,54 @@ pub struct BoundingBox {
     /// The height of the bounding box
     #[serde(rename = "h")]
     pub height: u16,
+    /// The confidence of the detection (0.0 - 1.0), optional
+    pub confidence: Option<f32>,
+    /// The label of the detection (e.g. "person", "car", etc.)
+    pub label: Option<String>,
+}
+
+impl Default for BoundingBox {
+    fn default() -> Self {
+        Self {
+            color: [0, 255, 0],
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+            confidence: None,
+            label: None,
+        }
+    }
+}
+
+impl BoundingBox {
+    /// Create a new bounding box with the given parameters. The color is set to green by default.
+    pub fn new(x: u16, y: u16, width: u16, height: u16) -> Self {
+        Self {
+            color: [0, 255, 0],
+            x,
+            y,
+            width,
+            height,
+            confidence: None,
+            label: None,
+        }
+    }
+    /// Set the color of the bounding box
+    pub fn with_color(mut self, color: [u8; 3]) -> Self {
+        self.color = color;
+        self
+    }
+    /// Set the confidence of the detection
+    pub fn with_confidence(mut self, confidence: f32) -> Self {
+        self.confidence = Some(confidence);
+        self
+    }
+    /// Set the label of the detection
+    pub fn with_label<L: AsRef<str>>(mut self, label: L) -> Self {
+        self.label = Some(label.as_ref().to_owned());
+        self
+    }
 }
 
 #[binrw]

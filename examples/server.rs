@@ -42,20 +42,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 source: "test".to_string(),
                 frame_number,
                 bounding_boxes: vec![
-                    BoundingBox {
-                        color: [255, 0, 0],
-                        x: 100,
-                        y: 300,
-                        width: 100,
-                        height: 100,
-                    },
-                    BoundingBox {
-                        color: [0, 255, 0],
-                        x: 220,
-                        y: 220,
-                        width: 50,
-                        height: 50,
-                    },
+                    BoundingBox::new(100, 300, 100, 100).with_color([255, 0, 0]),
+                    BoundingBox::new(220, 220, 50, 50),
                 ],
             };
             stream
