@@ -154,7 +154,9 @@ fn handle_connection(
                     }
                     let mut label = bbox.label.unwrap_or_default();
                     if let Some(conf) = bbox.confidence {
-                        label.push(' ');
+                        if !label.is_empty() {
+                            label.push(' ');
+                        }
                         label.push_str(format!("{:.2}", conf).as_str());
                     }
                     if !label.is_empty() {
