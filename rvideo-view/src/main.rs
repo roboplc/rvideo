@@ -1,8 +1,7 @@
 use std::{
     sync::{
-        atomic,
-        mpsc::{channel, Receiver, Sender},
-        Arc,
+        Arc, atomic,
+        mpsc::{Receiver, Sender, channel},
     },
     thread,
     time::{Duration, Instant},
